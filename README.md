@@ -57,8 +57,10 @@ native installer. `probe fakeapi` serves a local stand-in for the Messages API
 credentials and no model cost. `ci-run.sh` runs a normal start and then
 `--resume`. Each job writes its report to the run summary and uploads the raw log.
 
-Limit: `/clear` cannot be triggered headless, so CI covers startup and resume
-only. `/clear` needs the interactive steps above.
+`clear-run.sh` then sends a prompt, `/clear` and another prompt to one headless
+Claude process over `--input-format stream-json`, so CI also covers `/clear`:
+SessionStart fires with `source=clear` and a new session ID while the MCP server
+keeps running.
 
 ## Self-test (Linux/macOS, not evidence)
 

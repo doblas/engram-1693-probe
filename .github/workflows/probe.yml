@@ -71,6 +71,11 @@ jobs:
           command -v claude
           ./ci-run.sh "$RUNNER_TEMP/proj"
 
+      - name: Run Claude Code headless with /clear (stream-json input)
+        shell: bash
+        continue-on-error: true
+        run: ./clear-run.sh "$RUNNER_TEMP/proj"
+
       - name: Report
         if: always()
         shell: bash

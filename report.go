@@ -115,7 +115,7 @@ func runReport(path string, out io.Writer) int {
 		return hosts[0], -1
 	}
 
-	var ppidScript, winpidScript, exeParent, execParent, claudePID, mcpStable tally
+	var ppidScript, winpidScript, exeParent, execParent, execClear, claudePID, mcpStable tally
 	fmt.Fprintf(out, "### Probe results (%s)\n\n", osName)
 	fmt.Fprintln(out, "**MCP server**")
 	fmt.Fprintln(out)
@@ -163,6 +163,9 @@ func runReport(path string, out io.Writer) int {
 			// Exec form (`args` set): Claude Code spawns the executable with
 			// no shell, so os.Getppid() should be the host.
 			execParent.add(r.PPID == h.PID)
+			if r.Source == "clear" {
+				execClear.add(r.PPID == h.PID)
+			}
 		} else {
 			// Shell form running an executable directly, like
 			// `engram hook claude-pre-tool-use`, sees this as os.Getppid().
@@ -185,6 +188,7 @@ func runReport(path string, out io.Writer) int {
 	fmt.Fprintf(out, "- Same, translated with `/proc/$PPID/winpid` (MSYS only): %s\n", winpidScript.verdict())
 	fmt.Fprintf(out, "- Shell-form hook executable, `os.Getppid()` (engram's PreToolUse today): %s\n", exeParent.verdict())
 	fmt.Fprintf(out, "- Exec-form hook (`args`), `os.Getppid()` — proposed: %s\n", execParent.verdict())
+	fmt.Fprintf(out, "- Same, on SessionStart after `/clear` (MCP server not restarted): %s\n", execClear.verdict())
 	fmt.Fprintf(out, "- `CLAUDE_PID` in the hook env equals the MCP parent: %s\n", claudePID.verdict())
 	fmt.Fprintf(out, "- MCP parent identity (pid + start time) stable across calls: %s\n", mcpStable.verdict())
 	return 0
