@@ -1,0 +1,95 @@
+name: probe
+
+# Measures how real Claude Code wires hooks and stdio MCP servers to its host
+# process on each OS, for engram #1693. A local fake Messages API stands in for
+# the model, so no credentials are used and nothing is billed.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+        install: [npm, native]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    env:
+      CLAUDE_CODE_GIT_BASH_PATH: 'C:\Program Files\Git\bin\bash.exe'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Build probe
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then go build -o probe.exe .; else go build -o probe .; fi
+
+      - uses: actions/setup-node@v4
+        if: matrix.install == 'npm'
+        with:
+          node-version: 22
+
+      - name: Install Claude Code (npm)
+        if: matrix.install == 'npm'
+        shell: bash
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Install Claude Code (native, Windows)
+        if: matrix.install == 'native' && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          irm https://claude.ai/install.ps1 | iex
+          "$env:USERPROFILE\.local\bin" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+
+      - name: Install Claude Code (native, Unix)
+        if: matrix.install == 'native' && runner.os != 'Windows'
+        shell: bash
+        run: |
+          curl -fsSL https://claude.ai/install.sh | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Prepare probe project
+        shell: pwsh
+        run: ./install.ps1 -Project (Join-Path $env:RUNNER_TEMP proj)
+
+      - name: Run Claude Code headless (startup, then --resume)
+        shell: bash
+        continue-on-error: true
+        run: |
+          claude --version
+          command -v claude
+          ./ci-run.sh "$RUNNER_TEMP/proj"
+
+      - name: Report
+        if: always()
+        shell: bash
+        run: |
+          exe=./probe; [ "$RUNNER_OS" = Windows ] && exe=./probe.exe
+          {
+            echo "## ${{ matrix.os }} / ${{ matrix.install }}"
+            echo
+            echo "Claude Code: \`$(claude --version 2>/dev/null || echo unavailable)\`"
+            echo
+            "$exe" report || echo "_no probe records_"
+          } | tee report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: probe-${{ matrix.os }}-${{ matrix.install }}
+          path: |
+            report.md
+            probe-1693.jsonl
+            probe-1693.jsonl.api
+          if-no-files-found: warn
