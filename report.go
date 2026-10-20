@@ -115,7 +115,7 @@ func runReport(path string, out io.Writer) int {
 		return hosts[0], -1
 	}
 
-	var ppidScript, winpidScript, exeParent, claudePID, mcpStable tally
+	var ppidScript, winpidScript, exeParent, execParent, claudePID, mcpStable tally
 	fmt.Fprintf(out, "### Probe results (%s)\n\n", osName)
 	fmt.Fprintln(out, "**MCP server**")
 	fmt.Fprintln(out)
@@ -138,8 +138,8 @@ func runReport(path string, out io.Writer) int {
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, "**Hooks** (host = the MCP server's parent)")
 	fmt.Fprintln(out)
-	fmt.Fprintln(out, "| Hook | Source | Session | Host depth | bash `$PPID` = host | winpid(`$PPID`) = host | exe parent = host | `CLAUDE_PID` = host | Chain |")
-	fmt.Fprintln(out, "|---|---|---|---|---|---|---|---|---|")
+	fmt.Fprintln(out, "| Hook | Event | Source | Session | Host depth | bash `$PPID` = host | winpid(`$PPID`) = host | exe parent = host | `CLAUDE_PID` = host | Chain |")
+	fmt.Fprintln(out, "|---|---|---|---|---|---|---|---|---|---|")
 	for _, r := range recs {
 		if r.Kind != "hook" {
 			continue
@@ -159,8 +159,12 @@ func runReport(path string, out io.Writer) int {
 				winpidScript.add(ok)
 				winpid = fmt.Sprintf("%s %s", mark(ok), w)
 			}
+		} else if strings.HasSuffix(r.Label, "-exec") {
+			// Exec form (`args` set): Claude Code spawns the executable with
+			// no shell, so os.Getppid() should be the host.
+			execParent.add(r.PPID == h.PID)
 		} else {
-			// A hook command that runs an executable directly, like
+			// Shell form running an executable directly, like
 			// `engram hook claude-pre-tool-use`, sees this as os.Getppid().
 			exeParent.add(r.PPID == h.PID)
 		}
@@ -170,8 +174,8 @@ func runReport(path string, out io.Writer) int {
 			claudePID.add(ok)
 			cp = fmt.Sprintf("%s %s", mark(ok), v)
 		}
-		fmt.Fprintf(out, "| %s | %s | %s | %s | %s | %s | %s %d | %s | %s |\n",
-			r.Label, orDash(r.Source), short(r.SessionID), depthText, script, winpid, mark(r.PPID == h.PID), r.PPID, cp, chain(r))
+		fmt.Fprintf(out, "| %s | %s | %s | %s | %s | %s | %s | %s %d | %s | %s |\n",
+			r.Label, orDash(r.Event), orDash(r.Source), short(r.SessionID), depthText, script, winpid, mark(r.PPID == h.PID), r.PPID, cp, chain(r))
 	}
 
 	fmt.Fprintln(out)
@@ -179,7 +183,8 @@ func runReport(path string, out io.Writer) int {
 	fmt.Fprintln(out)
 	fmt.Fprintf(out, "- `session-start.sh` publishing `ENGRAM_HOST_PID=$PPID`: %s\n", ppidScript.verdict())
 	fmt.Fprintf(out, "- Same, translated with `/proc/$PPID/winpid` (MSYS only): %s\n", winpidScript.verdict())
-	fmt.Fprintf(out, "- Direct hook executable using `os.Getppid()` (PreToolUse path): %s\n", exeParent.verdict())
+	fmt.Fprintf(out, "- Shell-form hook executable, `os.Getppid()` (engram's PreToolUse today): %s\n", exeParent.verdict())
+	fmt.Fprintf(out, "- Exec-form hook (`args`), `os.Getppid()` — proposed: %s\n", execParent.verdict())
 	fmt.Fprintf(out, "- `CLAUDE_PID` in the hook env equals the MCP parent: %s\n", claudePID.verdict())
 	fmt.Fprintf(out, "- MCP parent identity (pid + start time) stable across calls: %s\n", mcpStable.verdict())
 	return 0

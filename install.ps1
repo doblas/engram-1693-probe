@@ -1,6 +1,8 @@
 # Prepares a throwaway Claude Code project that wires the probe exactly like
 # the engram plugin: a bash SessionStart script (run by Claude through Git
 # Bash on Windows), a direct-executable PreToolUse hook, and a stdio MCP server.
+# Each event also gets an exec-form variant (`args` set, no shell) labeled
+# "<Event>-exec", so both forms run side by side.
 #
 #   powershell -ExecutionPolicy Bypass -File .\install.ps1 [-Project C:\path\to\empty\dir]
 param([string]$Project = (Join-Path ([IO.Path]::GetTempPath()) "engram-1693-probe-project"))
@@ -21,11 +23,17 @@ $settings = [ordered]@{
   hooks = [ordered]@{
     SessionStart = @(@{
       matcher = "startup|resume|clear|fork"
-      hooks   = @(@{ type = "command"; command = "`"$bashKit/probe-hook.sh`" SessionStart"; timeout = 10 })
+      hooks   = @(
+        @{ type = "command"; command = "`"$bashKit/probe-hook.sh`" SessionStart"; timeout = 10 },
+        @{ type = "command"; command = $exe; args = @("hook", "SessionStart-exec"); timeout = 10 }
+      )
     })
     PreToolUse = @(@{
       matcher = "^mcp__probe1693__whoami$"
-      hooks   = @(@{ type = "command"; command = "`"$bashKit/$exeName`" hook PreToolUse"; timeout = 5 })
+      hooks   = @(
+        @{ type = "command"; command = "`"$bashKit/$exeName`" hook PreToolUse"; timeout = 5 },
+        @{ type = "command"; command = $exe; args = @("hook", "PreToolUse-exec"); timeout = 5 }
+      )
     })
   }
   permissions = @{ allow = @("mcp__probe1693__whoami") }

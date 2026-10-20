@@ -13,7 +13,8 @@ It touches nothing of engram. It only creates a throwaway project and a log file
 | Is the MCP server's parent the `claude` process? | `engram mcp` looks up its binding via `os.Getppid()` |
 | Does `$PPID` in a bash hook equal that PID? | `session-start.sh` publishes `ENGRAM_HOST_PID=$PPID`. On Git Bash this may be an MSYS PID, or an intermediate `bash.exe` |
 | Does `/proc/$PPID/winpid` fix it? | Possible translation if `$PPID` is an MSYS PID |
-| Is a direct hook executable a child of `claude`? | The PreToolUse binding uses `os.Getppid()` |
+| Is a shell-form hook executable a child of `claude`? | The PreToolUse binding uses `os.Getppid()` |
+| Is an exec-form hook (`args` set, no shell) a child of `claude`? | If so, `os.Getppid()` works on every OS. The kit registers `SessionStart-exec` and `PreToolUse-exec` next to the shell-form hooks |
 | Does the hook env carry `CLAUDE_PID`? | A shell-independent alternative to `$PPID` |
 | Does the MCP parent stay the same across `/clear`? | The binding must follow `/clear` |
 
@@ -44,6 +45,7 @@ It touches nothing of engram. It only creates a throwaway project and a log file
 - **`session-start.sh` publishing `$PPID` ✅**: the current PR works as is on Windows.
 - **❌, but `winpid` ✅**: `session-start.sh` must translate the MSYS PID with `/proc/$PPID/winpid`.
 - **Both ❌, `CLAUDE_PID` ✅**: publish the binding with `CLAUDE_PID` instead of `$PPID`.
+- **Exec-form hook `os.Getppid()` ✅**: registering the hook with `command` + `args` (no shell) makes `claude` the direct parent, so the binding can use `os.Getppid()` even where shell-form hooks get an intermediate `sh`/`bash.exe`. The shell-form verdict above it shows what engram's PreToolUse gets today.
 - **MCP parent is not `claude` (or not stable)**: the design does not hold on Windows. Declare it as an explicit limit; writes keep today's behavior.
 
 ## CI run (no Windows machine needed)

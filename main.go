@@ -36,6 +36,7 @@ type record struct {
 	OS        string            `json:"os"`
 	Kind      string            `json:"kind"` // hook | mcp-start | mcp-call
 	Label     string            `json:"label,omitempty"`
+	Event     string            `json:"event,omitempty"` // hook_event_name from the payload
 	SessionID string            `json:"session_id,omitempty"`
 	Source    string            `json:"source,omitempty"`
 	PID       int               `json:"pid"`
@@ -127,9 +128,7 @@ func runHook(label string) {
 	if json.Unmarshal(data, &payload) == nil {
 		r.SessionID = payload.SessionID
 		r.Source = payload.Source
-		if payload.Event != "" {
-			r.Label = payload.Event
-		}
+		r.Event = payload.Event
 	}
 	appendRecord(r)
 }

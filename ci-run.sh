@@ -15,6 +15,8 @@ command -v cygpath >/dev/null && CLAUDE_CONFIG_DIR="$(cygpath -w "$CLAUDE_CONFIG
 export CLAUDE_CONFIG_DIR
 export ANTHROPIC_API_KEY=probe-fake-key ANTHROPIC_BASE_URL=http://127.0.0.1:18693
 export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 DISABLE_AUTOUPDATER=1
+# Send MCP tools directly; with ToolSearch on, the fake API loops calling whoami.
+export ENABLE_TOOL_SEARCH=false
 
 "$exe" fakeapi 127.0.0.1:18693 &
 api=$!
